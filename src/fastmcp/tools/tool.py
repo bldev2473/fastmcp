@@ -85,12 +85,26 @@ class Tool(BaseModel):
                 if param.annotation is Request:
                     request_kwarg = param_name
                     break
+        
+
+        skip_names = []
+        
+        if (context_kwarg is not None):
+            skip_names.append(context_kwarg)
+        if (request_kwarg is not None):
+            skip_names.append(context_kwarg)
+
+        func_arg_metadata = func_metadata(
+            fn,
+            skip_names=skip_names,
+        )
+        parameters = func_arg_metadata.arg_model.model_json_schema()
 
         # Use callable typing to ensure fn is treated as a callable despite being a classmethod
         fn_callable: Callable[..., Any] = fn
         func_arg_metadata = func_metadata(
             fn_callable,
-            skip_names=[context_kwarg] if context_kwarg is not None else [],
+            skip_names=skip_names,
         )
         parameters = func_arg_metadata.arg_model.model_json_schema()
 
