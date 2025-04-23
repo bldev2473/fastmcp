@@ -14,6 +14,8 @@ from fastmcp.exceptions import ToolError
 from fastmcp.utilities.func_metadata import FuncMetadata, func_metadata
 from fastmcp.utilities.types import Image, _convert_set_defaults
 
+from starlette.requests import Request
+
 if TYPE_CHECKING:
     from mcp.server.session import ServerSessionT
     from mcp.shared.context import LifespanContextT
@@ -36,6 +38,9 @@ class Tool(BaseModel):
     context_kwarg: str | None = Field(
         None, description="Name of the kwarg that should receive context"
     )
+    request_kwarg: str | None = Field(
+        None, description="Name of the kwarg that should receive request of Starlette"
+    )
     tags: Annotated[set[str], BeforeValidator(_convert_set_defaults)] = Field(
         default_factory=set, description="Tags for the tool"
     )
@@ -47,6 +52,7 @@ class Tool(BaseModel):
         name: str | None = None,
         description: str | None = None,
         context_kwarg: str | None = None,
+        request_kwarg: str | None = None,    
         tags: set[str] | None = None,
     ) -> Tool:
         """Create a Tool from a function."""
@@ -70,6 +76,16 @@ class Tool(BaseModel):
                     context_kwarg = param_name
                     break
 
+        if request_kwarg is None:
+            if inspect.ismethod(fn) and hasattr(fn, "__func__"):
+                sig = inspect.signature(fn.__func__)
+            else:
+                sig = inspect.signature(fn)
+            for param_name, param in sig.parameters.items():
+                if param.annotation is Request:
+                    request_kwarg = param_name
+                    break
+
         # Use callable typing to ensure fn is treated as a callable despite being a classmethod
         fn_callable: Callable[..., Any] = fn
         func_arg_metadata = func_metadata(
@@ -86,6 +102,7 @@ class Tool(BaseModel):
             fn_metadata=func_arg_metadata,
             is_async=is_async,
             context_kwarg=context_kwarg,
+            request_kwarg=request_kwarg,
             tags=tags or set(),
         )
 
@@ -96,13 +113,18 @@ class Tool(BaseModel):
     ) -> list[TextContent | ImageContent | EmbeddedResource]:
         """Run the tool with arguments."""
         try:
+            arguments_to_pass_directly = {}
+            if (self.context_kwarg is not None):
+                arguments_to_pass_directly[self.context_kwarg] = context
+
+            if (self.request_kwarg is not None):
+                arguments_to_pass_directly[self.request_kwarg] = arguments['request']
+
             result = await self.fn_metadata.call_fn_with_arg_validation(
                 self.fn,
                 self.is_async,
                 arguments,
-                {self.context_kwarg: context}
-                if self.context_kwarg is not None
-                else None,
+                arguments_to_pass_directly,
             )
             return _convert_to_content(result)
         except Exception as e:
