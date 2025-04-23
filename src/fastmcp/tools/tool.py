@@ -92,7 +92,7 @@ class Tool(BaseModel):
         if (context_kwarg is not None):
             skip_names.append(context_kwarg)
         if (request_kwarg is not None):
-            skip_names.append(context_kwarg)
+            skip_names.append(request_kwarg)
 
         func_arg_metadata = func_metadata(
             fn,
