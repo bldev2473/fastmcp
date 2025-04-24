@@ -286,7 +286,16 @@ class FastMCP(Generic[LifespanResultT]):
         from fastmcp.server.context import Context
 
         return Context(request_context=request_context, fastmcp=self)
+    
+    def get_request(self) -> Request:
+        """
+        Returns a Context object. Note that the context will only be valid
+        during a request; outside a request, most methods will error.
+        """
 
+        request = self._mcp_server.starlette_request
+        return request
+    
     async def get_tools(self) -> dict[str, Tool]:
         """Get all registered tools, indexed by registered key."""
         if (tools := self._cache.get("tools")) is NOT_FOUND:
@@ -380,7 +389,8 @@ class FastMCP(Generic[LifespanResultT]):
         """Call a tool by name with arguments."""
         if self._tool_manager.has_tool(key):
             context = self.get_context()
-            result = await self._tool_manager.call_tool(key, arguments, context=context)
+            request = self.get_request()
+            result = await self._tool_manager.call_tool(key, arguments, context=context, request=request)
 
         else:
             for server in self._mounted_servers.values():

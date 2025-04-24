@@ -124,6 +124,7 @@ class Tool(BaseModel):
         self,
         arguments: dict[str, Any],
         context: Context[ServerSessionT, LifespanContextT] | None = None,
+        request: Request | None = None,
     ) -> list[TextContent | ImageContent | EmbeddedResource]:
         """Run the tool with arguments."""
         try:
@@ -132,7 +133,7 @@ class Tool(BaseModel):
                 arguments_to_pass_directly[self.context_kwarg] = context
 
             if (self.request_kwarg is not None):
-                arguments_to_pass_directly[self.request_kwarg] = arguments['request']
+                arguments_to_pass_directly[self.request_kwarg] = request
 
             result = await self.fn_metadata.call_fn_with_arg_validation(
                 self.fn,

@@ -16,6 +16,8 @@ if TYPE_CHECKING:
 
     from fastmcp.server import Context
 
+from starlette.requests import Request
+
 logger = get_logger(__name__)
 
 
@@ -89,10 +91,11 @@ class ToolManager:
         key: str,
         arguments: dict[str, Any],
         context: Context[ServerSessionT, LifespanContextT] | None = None,
+        request: Request | None = None,
     ) -> list[TextContent | ImageContent | EmbeddedResource]:
         """Call a tool by name with arguments."""
         tool = self.get_tool(key)
         if not tool:
             raise NotFoundError(f"Unknown tool: {key}")
 
-        return await tool.run(arguments, context=context)
+        return await tool.run(arguments, context=context, request=request)
