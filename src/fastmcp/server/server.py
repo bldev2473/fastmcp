@@ -184,6 +184,7 @@ class FastMCP(Generic[LifespanResultT]):
         lifespan: (
             Callable[["FastMCP"], AbstractAsyncContextManager[LifespanResultT]] | None
         ) = None,
+        starlette_request: Request | None = None,
         tags: set[str] | None = None,
         **settings: Any,
     ):
@@ -199,6 +200,8 @@ class FastMCP(Generic[LifespanResultT]):
 
         if lifespan is None:
             lifespan = default_lifespan
+
+        self.starlette_request = starlette_request
 
         self._mcp_server = MCPServer[LifespanResultT](
             name=name or "FastMCP",
@@ -287,13 +290,13 @@ class FastMCP(Generic[LifespanResultT]):
 
         return Context(request_context=request_context, fastmcp=self)
     
-    def get_request(self) -> Request:
+    def get_starlette_request(self) -> Request | None:
         """
         Returns a Context object. Note that the context will only be valid
         during a request; outside a request, most methods will error.
         """
 
-        request = self._mcp_server.starlette_request
+        request = self.starlette_request
         return request
     
     async def get_tools(self) -> dict[str, Tool]:
@@ -389,7 +392,7 @@ class FastMCP(Generic[LifespanResultT]):
         """Call a tool by name with arguments."""
         if self._tool_manager.has_tool(key):
             context = self.get_context()
-            request = self.get_request()
+            request = self.get_starlette_request()
             result = await self._tool_manager.call_tool(key, arguments, context=context, request=request)
 
         else:
