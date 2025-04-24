@@ -35,6 +35,8 @@ from pydantic.networks import AnyUrl
 from starlette.applications import Starlette
 from starlette.requests import Request
 from starlette.routing import Mount, Route
+from starlette.types import ASGIApp, ExceptionHandler, Lifespan, Receive, Scope, Send
+from starlette.websockets import WebSocket
 
 import fastmcp
 import fastmcp.settings
@@ -184,7 +186,6 @@ class FastMCP(Generic[LifespanResultT]):
         lifespan: (
             Callable[["FastMCP"], AbstractAsyncContextManager[LifespanResultT]] | None
         ) = None,
-        starlette_request: Request | None = None,
         tags: set[str] | None = None,
         **settings: Any,
     ):
@@ -201,7 +202,7 @@ class FastMCP(Generic[LifespanResultT]):
         if lifespan is None:
             lifespan = default_lifespan
 
-        self.starlette_request = starlette_request
+        self.starlette_request = None
 
         self._mcp_server = MCPServer[LifespanResultT](
             name=name or "FastMCP",
@@ -724,7 +725,10 @@ class FastMCP(Generic[LifespanResultT]):
         server = uvicorn.Server(config)
         await server.serve()
 
-    def sse_app(self) -> Starlette:
+    def sse_app(
+        self,
+        starlette_life_span: Lifespan | None = None,
+    ) -> Starlette:
         """Return an instance of the SSE server app."""
         sse = SseServerTransport(self.settings.message_path)
 
@@ -734,6 +738,7 @@ class FastMCP(Generic[LifespanResultT]):
                 request.receive,
                 request._send,  # type: ignore[reportPrivateUsage]
             ) as streams:
+                self.starlette_request = request
                 await self._mcp_server.run(
                     streams[0],
                     streams[1],
@@ -746,6 +751,7 @@ class FastMCP(Generic[LifespanResultT]):
                 Route(self.settings.sse_path, endpoint=handle_sse),
                 Mount(self.settings.message_path, app=sse.handle_post_message),
             ],
+            lifespan=starlette_life_span,
         )
 
     def mount(
